@@ -11,7 +11,7 @@ import numpy as np
 from numpy import random
 import matplotlib.pyplot as plt
 
-
+#Uncomment out for first run to get pickle data
 #Data import from Quandl API
 #df = pd.DataFrame(quandl.get("EOD/AAPL", authtoken="SAsM3P3YGsmFwxsDsyu6"))
 
@@ -19,40 +19,63 @@ import matplotlib.pyplot as plt
 #df.to_pickle('AAPL_pickle')
 
 #Reading ('AAPl pickle')
-df = pd.read_pickle('AAPL_pickle')
+df = pd.DataFrame(pd.read_pickle('AAPL_pickle'))
 
-df = pd.DataFrame(df['Adj_Close'])
+aapl = pd.DataFrame()
+aapl['Price'] = df['Adj_Close']
+aapl['Log Return'] = np.log(df['Adj_Close']/df['Adj_Close'].shift(1))
 
-df['Return'] = (df['Adj_Close'] - df['Adj_Close']).shift(1) / df['Adj_close'].shift(1)
+#Mean and SD from 12 month previous data
+aapl_12 = aapl.loc['2018-04-03':'2019-04-02','Log Return']
+aapl_12 = aapl_12.describe()
 
-df['Log Return'] = log(df['Return'])
+#Starting AAPL price
+aapl_start = df['Adj_Close'][-1]
 
-#Creating 12 months previous data
-df1 = df.loc['2018-1-30':'2019-1-31']
-
-#Checking time frame, confirmed 252 trading days
-df1.info()
-df1_stats = df1.describe()
-
-#Setting up randn with mean and sd from sample
-def price_append(T,n):
-    mean = (df1_stats.iloc[1,1])
-    sd = df1_stats.iloc[2,1]    
-    N = 0
-    while n > N:
-        price = df1.iloc[-1,0]
-        t = 1
-        pX = []
-        pY = []
-        while T > t:
-            price = price + (price * (sd * (random.randn()) + mean))
-            pX.append(t)
-            pY.append(price)
-            t+=1
-            fig = plt.plot(pX,pY)
-        N+=1 
-        print('Ran Simulation No.'+str(N))
-    
-#price_append(1008,10)
+#Running simulation
+def monte_carlo_simulation(simulations, years_to_simulate):
+    time = aapl_12
+    start_price = aapl['Price'][-1]
+    plt.figure(figsize=(20,10))
+    final_price = []
+    for i in range(simulations):
+        start_price = aapl_start
+        trading_days_simulated = 1
+        mean = time.loc['mean']
+        sd = time.loc['std']
+        trading_days = 252
+        simulated_price = []
+        days_simulated = []
+        for days in range(years_to_simulate * trading_days):
+            price = start_price * (1+(random.normal(mean, sd)))
+            simulated_price.append(price)
+            days_simulated.append(trading_days_simulated)
+            start_price = price
+            trading_days_simulated +=1
+            if trading_days_simulated == (252*years_to_simulate):
+                final_price.append(price)                
+        plt.plot(days_simulated, simulated_price)
+    return(final_price, start_price)        
+        
+x = monte_carlo_simulation(1000,10)
+plt.ylabel('AAPL Price')
+plt.xlabel('Trading Days Simulated')
+plt.rc('xtick', labelsize=30)
+plt.rc('ytick', labelsize=30)
 plt.show()
-print('Script Finished')
+plt.figure(figsize=(20,10))
+plt.hist(x,bins=50)
+plt.show()        
+    
+#printing stats from experiment
+print('This experiment ran ' + str(len(x[0]))+' times')
+print('---------------------------------------------')
+print('The max share price was $' + str(round(max(x[0]), 2)))
+print('---------------------------------------------')
+a = (((sum(x[0])/(len(x[0]))/aapl_start)*10000))
+print('If I invested $10,000 in apple today at the end of the simulation it would be worth $' + str(round(a, 2)))
+
+
+
+
+
